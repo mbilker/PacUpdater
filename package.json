@@ -1,0 +1,25 @@
+{
+  "name": "pacupdater",
+  "preferGlobal": true,
+  "version": "0.4.0",
+  "author": "mbilker <me@mbilker.us>",
+  "description": "Apticron for Arch Linux",
+  "bin": {
+    "pacupdater": "./bin/pacupdater"
+  },
+  "main": "./bin/pacupdater",
+  "bin": "./bin/pacupdater",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mbilker/pacupdater.git"
+  },
+  "dependencies": {
+    "lodash": "~1.2.1",
+    "async": "~0.2.8",
+    "emailjs": "~0.3.4"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": "0.10.x"
+  }
+}
