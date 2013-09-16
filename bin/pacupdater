@@ -1,19 +1,26 @@
 #!/usr/bin/env node
 
-var spawn = require('child_process').spawn
-  , os = require('os')
-  , fs = require('fs')
-  , email = require('emailjs')
-  , _ = require('lodash')
-  , async = require('async');
+var spawn = require('child_process').spawn,
+    os = require('os'),
+    fs = require('fs'),
+    email = require('emailjs'),
+    async = require('async'),
+    _ = require('lodash');
 
 var template = 'PacUpdater Report [<%= new Date() %>]\n========================================================================\n\nPacUpdater has detected that <%= updates.length %> package<% updates.length == 1 ? \'\' : \'s\' %> need upgrading on:\n\n        <%= hostname %>\n\nThe following packages are currently pending an upgrade:\n<% _.forEach(updates, function(u) { %>\n        <%= u.name %> <%= u.version %><% }); %>\n\n========================================================================\n\nYou can perform the upgrade by issuing the command:\n\n        pacman -Syu\n\nas root on <%= hostname %>\n';
 
-var server = email.server.connect({
-  user: '',
-  password: '',
-  host: 'localhost'
-});
+var options = {
+  name: 'mbilker',
+  addr: 'matthew.bilker@gmail.com',
+  smtp: {
+    user: '',
+    password: '',
+    host: 'localhost'
+  }
+}
+
+var server = email.server.connect(options.smtp);
+//console.log(server);
 
 var Parts = {
   description: /^Description.*: (.*)/,
@@ -40,24 +47,25 @@ var Packages = [];
 
 function checkPackage(u, cb) {
   var package = new Package(u[0], u[1]);
+  d('New Package found:', u);
   var p = spawn('pacman', ['-Si', u[0]]);
-  p.stdout.on('data', function(data) {
+  p.stdout.once('data', function(data) {
     //process.stdout.write(data);
     var fields = data.toString().split('\n');
-    async.each(fields, function(f, cb) {
-      Object.keys(Parts).forEach(function(part) {
-        var ret = Parts[part].exec(f);
-        if (ret) package[part] = ret[1];
+    _.each(fields, function(f) {
+      _.each(Parts, function(part, name) {
+        var ret = part.exec(f);
+        if (ret) package[name] = ret[1];
       });
-      cb();
-    }, cb);
+    });
+    cb();
   });
 }
 
 function mailChanges() {
   server.send({
-    from: 'PacUpdater <root@mbilker.us>',
-    to: 'Matt Bilker <matthew.bilker@gmail.com>',
+    from: 'PacUpdater <' + options.smtp.username + '>',
+    to: options.name + ' <' + options.addr + '>',
     subject: 'PacUpdater - Updates Available',
     text: _.template(template, { updates: Packages, hostname: os.hostname() })
   }, function(err, message) {
@@ -68,8 +76,8 @@ function mailChanges() {
 
 async.waterfall([
   function(cb) {
-   d('Updating package database'); 
-   var p = spawn('pacman', ['-Sy']);
+    d('Updating package database'); 
+    var p = spawn('pacman', ['-Sy']);
     p.on('close', function(code) {
       cb(code == 0 ? null : code);
     });
@@ -81,16 +89,17 @@ async.waterfall([
     p.stdout.on('data', function(data) {
       u = data.toString().split('\n');
       u.pop();
-      u = updates.map(function(u) {
+      u = u.map(function(u) {
         return u.split(' ');
       });
-      async.each(updates, checkPackage, function() {
+      async.each(u, checkPackage, function() {
         mailChanges();
       });
     });
     p.on('close', function(code) {
       if (u.length == 0) d('No packages are outdated');
-        cb(null);
+      d('Exiting');
+      cb(null);
     });
   }
 ]);
